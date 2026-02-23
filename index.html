@@ -1,1 +1,713 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Neon Canopy Runner</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-top: #041326;
+      --bg-mid: #0d2f47;
+      --bg-bottom: #1b5768;
+      --neon: #31e5ff;
+      --accent: #ffd54d;
+      --danger: #ff4965;
+      --surface: rgba(10, 24, 40, 0.78);
+      --line: rgba(138, 233, 255, 0.35);
+    }
 
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+      touch-action: manipulation;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, sans-serif;
+      background: radial-gradient(circle at 50% 20%, #244f7f 0%, #102439 45%, #050d18 100%);
+      overflow: hidden;
+    }
+
+    .app {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+    }
+
+    .phone-frame {
+      position: relative;
+      width: min(100vw, calc(100vh * 0.56));
+      height: min(100vh, calc(100vw * 1.78));
+      max-height: 100vh;
+      max-width: 100vw;
+      overflow: hidden;
+      border-radius: 20px;
+      border: 1px solid rgba(157, 235, 255, 0.25);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55), 0 0 22px rgba(64, 202, 255, 0.2);
+      background: #000;
+    }
+
+    canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      background: linear-gradient(to bottom, var(--bg-top), var(--bg-mid) 45%, var(--bg-bottom));
+    }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      color: #ecfeff;
+    }
+
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 14px 14px 0;
+      gap: 10px;
+      font-weight: 800;
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.8);
+    }
+
+    .panel {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 118px;
+      padding: 8px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      backdrop-filter: blur(3px);
+    }
+
+    .panel b {
+      color: #fff;
+      font-size: 1.1rem;
+      letter-spacing: 0.3px;
+    }
+
+    .mult {
+      color: var(--accent);
+      font-size: 1.05rem;
+    }
+
+    .bottom-tip {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 14px;
+      width: calc(100% - 22px);
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      background: rgba(4, 17, 28, 0.74);
+      text-align: center;
+      font-size: 0.84rem;
+      color: rgba(233, 251, 255, 0.95);
+      letter-spacing: 0.2px;
+      line-height: 1.35;
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      color: #eaffff;
+      padding: 24px;
+      background: linear-gradient(180deg, rgba(2, 9, 18, 0.3), rgba(2, 9, 18, 0.84));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 220ms ease;
+    }
+
+    .overlay.show {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .overlay-card {
+      width: min(92%, 360px);
+      border: 1px solid rgba(114, 231, 255, 0.3);
+      background: rgba(7, 22, 35, 0.86);
+      backdrop-filter: blur(4px);
+      border-radius: 16px;
+      padding: 20px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
+    }
+
+    .overlay h1 {
+      margin: 0 0 8px;
+      font-size: clamp(1.1rem, 3.2vw, 1.6rem);
+      color: #fff;
+    }
+
+    .overlay p {
+      margin: 0 0 12px;
+      color: rgba(224, 250, 255, 0.92);
+      line-height: 1.4;
+      font-size: 0.93rem;
+    }
+
+    .btn {
+      border: 1px solid rgba(115, 237, 255, 0.6);
+      background: linear-gradient(180deg, #2de6ff, #15a8d8);
+      color: #032138;
+      border-radius: 10px;
+      padding: 11px 14px;
+      font-weight: 800;
+      font-size: 0.94rem;
+      cursor: pointer;
+      width: 100%;
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="phone-frame" id="frame">
+      <canvas id="game" aria-label="Бесконечный раннер"></canvas>
+
+      <div class="hud">
+        <div class="top-bar">
+          <div class="panel">🪙 <b id="coins">0</b></div>
+          <div class="panel"><span class="mult" id="multi">x1.0</span> ⚡ <b id="meters">0 м</b></div>
+        </div>
+        <div class="bottom-tip">Тап / Пробел / ↑ — прыжок (двойной в воздухе). Уклоняйся от дронов и шипов.</div>
+      </div>
+
+      <div class="overlay show" id="startOverlay">
+        <div class="overlay-card">
+          <h1>NEON CANOPY RUNNER</h1>
+          <p>Вертикальный endless-runner вправо для телефона.<br>Мир генерируется процедурно и постепенно ускоряется.</p>
+          <button class="btn" id="startBtn">Старт</button>
+        </div>
+      </div>
+
+      <div class="overlay" id="gameOverOverlay">
+        <div class="overlay-card">
+          <h1>Попытка окончена</h1>
+          <p id="finalStats">0 м · 0 монет</p>
+          <button class="btn" id="restartBtn">Играть снова</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const frame = document.getElementById('frame');
+
+    const startOverlay = document.getElementById('startOverlay');
+    const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const finalStats = document.getElementById('finalStats');
+
+    const metersEl = document.getElementById('meters');
+    const coinsEl = document.getElementById('coins');
+    const multiEl = document.getElementById('multi');
+
+    const startBtn = document.getElementById('startBtn');
+    const restartBtn = document.getElementById('restartBtn');
+
+    const world = {
+      w: 720,
+      h: 1280,
+      gravity: 2350,
+      speed: 350,
+      distance: 0,
+      scoreCoins: 0,
+      difficulty: 1,
+      running: false,
+      gameOver: false,
+      time: 0,
+      cameraX: 0,
+      farDots: []
+    };
+
+    const player = {
+      x: 130,
+      y: 0,
+      w: 64,
+      h: 84,
+      vx: 0,
+      vy: 0,
+      onGround: false,
+      jumpsLeft: 2,
+      trail: []
+    };
+
+    const items = {
+      platforms: [],
+      coins: [],
+      hazards: [],
+      drones: []
+    };
+
+    let lastT = 0;
+    let dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+
+    function resizeCanvas() {
+      const rect = frame.getBoundingClientRect();
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      world.w = rect.width;
+      world.h = rect.height;
+    }
+
+    function rnd(min, max) {
+      return min + Math.random() * (max - min);
+    }
+
+    function initSky() {
+      world.farDots = [];
+      for (let i = 0; i < 160; i++) {
+        world.farDots.push({ x: Math.random() * 6000, y: Math.random() * world.h * 0.7, r: rnd(0.8, 2.3), a: rnd(0.3, 0.95) });
+      }
+    }
+
+    function resetGame() {
+      world.speed = 350;
+      world.distance = 0;
+      world.scoreCoins = 0;
+      world.difficulty = 1;
+      world.running = true;
+      world.gameOver = false;
+      world.time = 0;
+      world.cameraX = 0;
+
+      player.x = 130;
+      player.y = world.h * 0.6;
+      player.vx = 0;
+      player.vy = 0;
+      player.jumpsLeft = 2;
+      player.onGround = false;
+      player.trail.length = 0;
+
+      items.platforms = [];
+      items.coins = [];
+      items.hazards = [];
+      items.drones = [];
+
+      const baseY = world.h * 0.72;
+      items.platforms.push({ x: -40, y: baseY, w: 350, h: 40 });
+
+      let x = 260;
+      for (let i = 0; i < 14; i++) {
+        generateChunk(x);
+        x += 180;
+      }
+
+      updateHud();
+      gameOverOverlay.classList.remove('show');
+    }
+
+    function generateChunk(fromX) {
+      const difficulty = world.difficulty;
+      const gap = rnd(90, Math.max(130, 180 - difficulty * 6));
+      const width = rnd(170, 260 - Math.min(70, difficulty * 7));
+
+      const prev = items.platforms[items.platforms.length - 1];
+      const targetY = prev
+        ? Math.min(world.h * 0.88, Math.max(world.h * 0.35, prev.y + rnd(-125, 125)))
+        : world.h * 0.7;
+
+      const platform = { x: fromX + gap, y: targetY, w: width, h: 38 };
+      items.platforms.push(platform);
+
+      const coinCount = Math.floor(rnd(1, 3.9));
+      for (let i = 0; i < coinCount; i++) {
+        items.coins.push({
+          x: platform.x + platform.w * (i + 1) / (coinCount + 1),
+          y: platform.y - rnd(70, 125),
+          r: 16,
+          got: false,
+          bob: Math.random() * Math.PI * 2
+        });
+      }
+
+      if (Math.random() < Math.min(0.18 + difficulty * 0.02, 0.55)) {
+        items.hazards.push({
+          x: platform.x + rnd(24, Math.max(26, platform.w - 80)),
+          y: platform.y - 20,
+          w: rnd(44, 88),
+          h: 20
+        });
+      }
+
+      if (Math.random() < Math.min(0.08 + difficulty * 0.015, 0.42)) {
+        items.drones.push({
+          x: platform.x + platform.w + rnd(35, 150),
+          y: platform.y - rnd(130, 210),
+          r: 26,
+          speed: rnd(90, 170) + difficulty * 8,
+          phase: Math.random() * Math.PI * 2
+        });
+      }
+    }
+
+    function triggerJump() {
+      if (!world.running) return;
+      if (player.jumpsLeft > 0) {
+        player.vy = -770;
+        player.jumpsLeft--;
+        player.onGround = false;
+      }
+    }
+
+    function collideRect(a, b) {
+      return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+    }
+
+    function endGame() {
+      world.running = false;
+      world.gameOver = true;
+      finalStats.textContent = `${Math.floor(world.distance)} м · ${world.scoreCoins} монет`;
+      gameOverOverlay.classList.add('show');
+    }
+
+    function update(dt) {
+      if (!world.running) return;
+
+      world.time += dt;
+      world.speed += dt * 3.4;
+      world.distance += (world.speed * dt) / 10;
+      world.difficulty = 1 + world.distance / 220;
+
+      world.cameraX += world.speed * dt;
+
+      player.vy += world.gravity * dt;
+      player.x += world.speed * dt;
+      player.y += player.vy * dt;
+
+      player.onGround = false;
+
+      for (const p of items.platforms) {
+        const prevBottom = player.y + player.h - player.vy * dt;
+        if (
+          player.x + player.w > p.x &&
+          player.x < p.x + p.w &&
+          prevBottom <= p.y &&
+          player.y + player.h >= p.y &&
+          player.vy >= 0
+        ) {
+          player.y = p.y - player.h;
+          player.vy = 0;
+          player.onGround = true;
+          player.jumpsLeft = 2;
+        }
+      }
+
+      const px = player.x + player.w * 0.48;
+      const py = player.y + player.h * 0.6;
+
+      for (const coin of items.coins) {
+        if (coin.got) continue;
+        coin.bob += dt * 5.5;
+        const dx = px - coin.x;
+        const dy = py - coin.y;
+        if (dx * dx + dy * dy < 30 * 30) {
+          coin.got = true;
+          world.scoreCoins += 1;
+        }
+      }
+
+      for (const h of items.hazards) {
+        const hurtbox = { x: h.x + 4, y: h.y + 2, w: h.w - 8, h: h.h - 2 };
+        if (collideRect(player, hurtbox)) {
+          endGame();
+          return;
+        }
+      }
+
+      for (const d of items.drones) {
+        d.x -= d.speed * dt;
+        d.y += Math.sin(world.time * 3 + d.phase) * 40 * dt;
+        const dx = px - d.x;
+        const dy = py - d.y;
+        if (dx * dx + dy * dy < (d.r + 22) ** 2) {
+          endGame();
+          return;
+        }
+      }
+
+      if (player.y > world.h + 150) {
+        endGame();
+        return;
+      }
+
+      while (items.platforms.length > 0 && items.platforms[items.platforms.length - 1].x < player.x + world.w * 1.4) {
+        const lastPlatform = items.platforms[items.platforms.length - 1];
+        generateChunk(lastPlatform.x + lastPlatform.w);
+      }
+
+      const cutoff = player.x - world.w * 0.45;
+      items.platforms = items.platforms.filter(p => p.x + p.w > cutoff);
+      items.coins = items.coins.filter(c => !c.got && c.x > cutoff - 120);
+      items.hazards = items.hazards.filter(h => h.x + h.w > cutoff);
+      items.drones = items.drones.filter(d => d.x + d.r > cutoff);
+
+      player.trail.push({ x: px, y: py + 12, life: 0.45 });
+      if (player.trail.length > 32) player.trail.shift();
+      for (const t of player.trail) t.life -= dt;
+      player.trail = player.trail.filter(t => t.life > 0);
+
+      updateHud();
+    }
+
+    function updateHud() {
+      metersEl.textContent = `${Math.floor(world.distance)} м`;
+      coinsEl.textContent = world.scoreCoins;
+      const mult = 1 + world.distance / 700;
+      multiEl.textContent = `x${mult.toFixed(1)}`;
+    }
+
+    function drawBackground(camX) {
+      const g = ctx.createLinearGradient(0, 0, 0, world.h);
+      g.addColorStop(0, '#051224');
+      g.addColorStop(0.43, '#0d344e');
+      g.addColorStop(1, '#1f6872');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, world.w, world.h);
+
+      const moonX = world.w * 0.74;
+      const moonY = world.h * 0.13;
+      const mGrad = ctx.createRadialGradient(moonX - 22, moonY - 18, 10, moonX, moonY, 66);
+      mGrad.addColorStop(0, '#fff8d4');
+      mGrad.addColorStop(0.5, '#beddff');
+      mGrad.addColorStop(1, 'rgba(190,221,255,0)');
+      ctx.fillStyle = mGrad;
+      ctx.beginPath();
+      ctx.arc(moonX, moonY, 66, 0, Math.PI * 2);
+      ctx.fill();
+
+      const parallax = camX * 0.23;
+      for (const s of world.farDots) {
+        const x = ((s.x - parallax) % (world.w + 240) + (world.w + 240)) % (world.w + 240) - 120;
+        ctx.globalAlpha = s.a;
+        ctx.fillStyle = '#d9f4ff';
+        ctx.beginPath();
+        ctx.arc(x, s.y, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      const fog = ctx.createLinearGradient(0, world.h * 0.25, 0, world.h);
+      fog.addColorStop(0, 'rgba(86,218,255,0.06)');
+      fog.addColorStop(1, 'rgba(3,8,14,0.44)');
+      ctx.fillStyle = fog;
+      ctx.fillRect(0, 0, world.w, world.h);
+
+      drawCanopyLayer(camX, 0.07, '#123b42', 0.24, 220);
+      drawCanopyLayer(camX, 0.12, '#0d2f36', 0.33, 270);
+      drawCanopyLayer(camX, 0.19, '#0a2329', 0.43, 330);
+    }
+
+    function drawCanopyLayer(camX, speed, color, alpha, size) {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = color;
+      const offset = (camX * speed) % size;
+      for (let x = -size; x < world.w + size; x += size) {
+        const bx = x - offset;
+        ctx.beginPath();
+        ctx.moveTo(bx, world.h);
+        ctx.bezierCurveTo(bx + 30, world.h - 90, bx + size * 0.38, world.h - 130, bx + size * 0.5, world.h - 70);
+        ctx.bezierCurveTo(bx + size * 0.67, world.h - 150, bx + size * 0.9, world.h - 90, bx + size, world.h);
+        ctx.closePath();
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    function drawPlatform(p, camX) {
+      const x = p.x - camX + world.w * 0.24;
+      const y = p.y;
+      ctx.fillStyle = '#263c50';
+      ctx.fillRect(x, y, p.w, p.h);
+      ctx.fillStyle = '#87d89b';
+      ctx.fillRect(x, y, p.w, 8);
+      ctx.fillStyle = '#3a5972';
+      ctx.fillRect(x, y + p.h - 8, p.w, 8);
+
+      for (let i = 8; i < p.w - 20; i += 34) {
+        ctx.fillStyle = i % 68 === 0 ? '#ff874b' : '#6be8ff';
+        ctx.fillRect(x + i, y + p.h - 6, 20, 4);
+      }
+    }
+
+    function drawHazard(h, camX) {
+      const x = h.x - camX + world.w * 0.24;
+      const y = h.y;
+      ctx.fillStyle = '#9098a3';
+      const spikes = Math.max(2, Math.floor(h.w / 16));
+      for (let i = 0; i < spikes; i++) {
+        const sx = x + i * (h.w / spikes);
+        ctx.beginPath();
+        ctx.moveTo(sx, y + h.h);
+        ctx.lineTo(sx + h.w / spikes / 2, y);
+        ctx.lineTo(sx + h.w / spikes, y + h.h);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+
+    function drawCoin(c, camX) {
+      const x = c.x - camX + world.w * 0.24;
+      const y = c.y + Math.sin(c.bob) * 4;
+      ctx.fillStyle = '#ffd95a';
+      ctx.beginPath();
+      ctx.arc(x, y, c.r, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = '#ffb128';
+      ctx.beginPath();
+      ctx.arc(x, y, c.r * 0.56, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255,246,180,0.85)';
+      ctx.beginPath();
+      ctx.arc(x - 4, y - 4, c.r * 0.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawDrone(d, camX) {
+      const x = d.x - camX + world.w * 0.24;
+      const y = d.y;
+      const glow = ctx.createRadialGradient(x, y, 8, x, y, 46);
+      glow.addColorStop(0, 'rgba(255,103,78,0.85)');
+      glow.addColorStop(1, 'rgba(255,103,78,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, 46, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#16293b';
+      ctx.beginPath();
+      ctx.ellipse(x, y, d.r + 8, d.r * 0.78, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#ff6f50';
+      ctx.beginPath();
+      ctx.arc(x, y, 10, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawPlayer(camX) {
+      for (const t of player.trail) {
+        const x = t.x - camX + world.w * 0.24;
+        ctx.globalAlpha = Math.max(0, t.life / 0.45) * 0.6;
+        ctx.fillStyle = '#58ddff';
+        ctx.beginPath();
+        ctx.arc(x, t.y, 16 * (1 - t.life / 0.45), 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
+
+      const x = player.x - camX + world.w * 0.24;
+      const y = player.y;
+
+      ctx.fillStyle = '#102035';
+      ctx.fillRect(x + 18, y + 18, 32, 52);
+
+      ctx.fillStyle = '#c92852';
+      ctx.fillRect(x + 16, y + 20, 36, 30);
+
+      ctx.fillStyle = '#1f2f44';
+      ctx.fillRect(x + 12, y + 48, 18, 28);
+      ctx.fillRect(x + 36, y + 48, 18, 28);
+
+      ctx.fillStyle = '#fd8f4d';
+      ctx.beginPath();
+      ctx.arc(x + 33, y + 14, 12, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = '#8fffff';
+      ctx.fillRect(x + 31, y + 10, 12, 6);
+    }
+
+    function render() {
+      drawBackground(world.cameraX);
+
+      const from = world.cameraX - world.w * 0.6;
+      const to = world.cameraX + world.w * 1.3;
+
+      for (const p of items.platforms) {
+        if (p.x + p.w > from && p.x < to) drawPlatform(p, world.cameraX);
+      }
+
+      for (const h of items.hazards) {
+        if (h.x + h.w > from && h.x < to) drawHazard(h, world.cameraX);
+      }
+
+      for (const c of items.coins) {
+        if (c.x > from && c.x < to) drawCoin(c, world.cameraX);
+      }
+
+      for (const d of items.drones) {
+        if (d.x + d.r > from && d.x - d.r < to) drawDrone(d, world.cameraX);
+      }
+
+      drawPlayer(world.cameraX);
+
+      if (!world.running && !world.gameOver) {
+        ctx.fillStyle = 'rgba(0,0,0,0.38)';
+        ctx.fillRect(0, 0, world.w, world.h);
+      }
+    }
+
+    function loop(ts) {
+      if (!lastT) lastT = ts;
+      const dt = Math.min((ts - lastT) / 1000, 0.032);
+      lastT = ts;
+
+      update(dt);
+      render();
+      requestAnimationFrame(loop);
+    }
+
+    const onPress = (e) => {
+      if (e.cancelable) e.preventDefault();
+      triggerJump();
+    };
+
+    window.addEventListener('resize', resizeCanvas);
+    window.addEventListener('orientationchange', resizeCanvas);
+
+    frame.addEventListener('pointerdown', onPress, { passive: false });
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        e.preventDefault();
+        triggerJump();
+      }
+    });
+
+    startBtn.addEventListener('click', () => {
+      startOverlay.classList.remove('show');
+      resetGame();
+    });
+
+    restartBtn.addEventListener('click', () => {
+      resetGame();
+    });
+
+    resizeCanvas();
+    initSky();
+    render();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
