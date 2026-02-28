@@ -44,8 +44,8 @@
 
     .phone-frame {
       position: relative;
-      width: min(100vw, calc(100vh * 0.56));
-      height: min(100vh, calc(100vw * 1.78));
+      width: min(100vw, calc(100vh * 0.5));
+      height: min(100vh, calc(100vw * 2));
       max-height: 100vh;
       max-width: 100vw;
       overflow: hidden;
@@ -188,7 +188,7 @@
           <div class="panel">🪙 <b id="coins">0</b></div>
           <div class="panel"><span class="mult" id="multi">x1.0</span> ⚡ <b id="meters">0 м</b></div>
         </div>
-        <div class="bottom-tip">Тап / Пробел / ↑ — прыжок (двойной в воздухе). Уклоняйся от дронов и шипов.</div>
+        <div class="bottom-tip">Тап / Пробел / ↑ — прыжок (двойной в воздухе). Касание боковой стены разворачивает бег.</div>
       </div>
 
       <div class="overlay show" id="startOverlay">
@@ -229,7 +229,7 @@
       w: 720,
       h: 1280,
       gravity: 2350,
-      speed: 350,
+      speed: 300,
       distance: 0,
       scoreCoins: 0,
       difficulty: 1,
@@ -237,6 +237,9 @@
       gameOver: false,
       time: 0,
       cameraX: 0,
+      runDir: 1,
+      wallInset: 68,
+      cameraLead: 0.17,
       farDots: []
     };
 
@@ -283,7 +286,7 @@
     }
 
     function resetGame() {
-      world.speed = 350;
+      world.speed = 300;
       world.distance = 0;
       world.scoreCoins = 0;
       world.difficulty = 1;
@@ -291,6 +294,7 @@
       world.gameOver = false;
       world.time = 0;
       world.cameraX = 0;
+      world.runDir = 1;
 
       player.x = 130;
       player.y = world.h * 0.6;
@@ -320,13 +324,13 @@
 
     function generateChunk(fromX) {
       const difficulty = world.difficulty;
-      const gap = rnd(90, Math.max(130, 180 - difficulty * 6));
+      const gap = rnd(70, Math.max(105, 150 - difficulty * 5));
       const width = rnd(170, 260 - Math.min(70, difficulty * 7));
 
       const prev = items.platforms[items.platforms.length - 1];
       const targetY = prev
-        ? Math.min(world.h * 0.88, Math.max(world.h * 0.35, prev.y + rnd(-125, 125)))
-        : world.h * 0.7;
+        ? Math.min(world.h * 0.9, Math.max(world.h * 0.28, prev.y + rnd(-165, 165)))
+        : world.h * 0.74;
 
       const platform = { x: fromX + gap, y: targetY, w: width, h: 38 };
       items.platforms.push(platform);
@@ -389,12 +393,19 @@
       world.speed += dt * 3.4;
       world.distance += (world.speed * dt) / 10;
       world.difficulty = 1 + world.distance / 220;
-
-      world.cameraX += world.speed * dt;
+      world.cameraX += world.speed * dt * 0.28;
 
       player.vy += world.gravity * dt;
-      player.x += world.speed * dt;
+      player.x += world.speed * world.runDir * dt;
       player.y += player.vy * dt;
+
+      const screenX = player.x - world.cameraX + world.w * world.cameraLead;
+      if (screenX <= world.wallInset || screenX >= world.w - world.wallInset - player.w) {
+        world.runDir *= -1;
+      }
+
+      const targetCamera = player.x - world.w * (world.runDir > 0 ? 0.2 : 0.72);
+      world.cameraX += (targetCamera - world.cameraX) * Math.min(1, dt * 4.2);
 
       player.onGround = false;
 
@@ -457,7 +468,7 @@
         generateChunk(lastPlatform.x + lastPlatform.w);
       }
 
-      const cutoff = player.x - world.w * 0.45;
+      const cutoff = world.cameraX - world.w * 0.8;
       items.platforms = items.platforms.filter(p => p.x + p.w > cutoff);
       items.coins = items.coins.filter(c => !c.got && c.x > cutoff - 120);
       items.hazards = items.hazards.filter(h => h.x + h.w > cutoff);
@@ -536,7 +547,7 @@
     }
 
     function drawPlatform(p, camX) {
-      const x = p.x - camX + world.w * 0.24;
+      const x = p.x - camX + world.w * world.cameraLead;
       const y = p.y;
       ctx.fillStyle = '#263c50';
       ctx.fillRect(x, y, p.w, p.h);
@@ -552,7 +563,7 @@
     }
 
     function drawHazard(h, camX) {
-      const x = h.x - camX + world.w * 0.24;
+      const x = h.x - camX + world.w * world.cameraLead;
       const y = h.y;
       ctx.fillStyle = '#9098a3';
       const spikes = Math.max(2, Math.floor(h.w / 16));
@@ -568,7 +579,7 @@
     }
 
     function drawCoin(c, camX) {
-      const x = c.x - camX + world.w * 0.24;
+      const x = c.x - camX + world.w * world.cameraLead;
       const y = c.y + Math.sin(c.bob) * 4;
       ctx.fillStyle = '#ffd95a';
       ctx.beginPath();
@@ -585,7 +596,7 @@
     }
 
     function drawDrone(d, camX) {
-      const x = d.x - camX + world.w * 0.24;
+      const x = d.x - camX + world.w * world.cameraLead;
       const y = d.y;
       const glow = ctx.createRadialGradient(x, y, 8, x, y, 46);
       glow.addColorStop(0, 'rgba(255,103,78,0.85)');
@@ -608,7 +619,7 @@
 
     function drawPlayer(camX) {
       for (const t of player.trail) {
-        const x = t.x - camX + world.w * 0.24;
+        const x = t.x - camX + world.w * world.cameraLead;
         ctx.globalAlpha = Math.max(0, t.life / 0.45) * 0.6;
         ctx.fillStyle = '#58ddff';
         ctx.beginPath();
@@ -617,7 +628,7 @@
       }
       ctx.globalAlpha = 1;
 
-      const x = player.x - camX + world.w * 0.24;
+      const x = player.x - camX + world.w * world.cameraLead;
       const y = player.y;
 
       ctx.fillStyle = '#102035';
