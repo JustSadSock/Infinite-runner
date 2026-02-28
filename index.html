@@ -188,7 +188,7 @@
           <div class="panel">🪙 <b id="coins">0</b></div>
           <div class="panel"><span class="mult" id="multi">x1.0</span> ⚡ <b id="meters">0 м</b></div>
         </div>
-        <div class="bottom-tip">Тап / Пробел / ↑ — прыжок (двойной в воздухе). Касание боковой стены разворачивает бег.</div>
+        <div class="bottom-tip">Тап / Пробел / ↑ — прыжок (двойной в воздухе). На ПК: Пробел — прыжок и рестарт.</div>
       </div>
 
       <div class="overlay show" id="startOverlay">
@@ -240,7 +240,9 @@
       runDir: 1,
       wallInset: 68,
       cameraLead: 0.17,
-      farDots: []
+      farDots: [],
+      auroraBands: [],
+      fireflies: []
     };
 
     const player = {
@@ -280,8 +282,32 @@
 
     function initSky() {
       world.farDots = [];
+      world.auroraBands = [];
+      world.fireflies = [];
+
       for (let i = 0; i < 160; i++) {
         world.farDots.push({ x: Math.random() * 6000, y: Math.random() * world.h * 0.7, r: rnd(0.8, 2.3), a: rnd(0.3, 0.95) });
+      }
+
+      for (let i = 0; i < 3; i++) {
+        world.auroraBands.push({
+          y: world.h * rnd(0.08, 0.45),
+          amp: rnd(18, 36),
+          speed: rnd(0.15, 0.35),
+          hue: rnd(170, 290),
+          phase: rnd(0, Math.PI * 2)
+        });
+      }
+
+      for (let i = 0; i < 26; i++) {
+        world.fireflies.push({
+          x: Math.random() * world.w,
+          y: Math.random() * world.h,
+          r: rnd(1.2, 3.2),
+          twinkle: rnd(0, Math.PI * 2),
+          dx: rnd(-14, 14),
+          dy: rnd(-9, 9)
+        });
       }
     }
 
@@ -308,6 +334,8 @@
       items.coins = [];
       items.hazards = [];
       items.drones = [];
+
+      if (world.fireflies.length === 0) initSky();
 
       const baseY = world.h * 0.72;
       items.platforms.push({ x: -40, y: baseY, w: 350, h: 40 });
@@ -431,6 +459,7 @@
       for (const coin of items.coins) {
         if (coin.got) continue;
         coin.bob += dt * 5.5;
+        coin.spark = (coin.spark || 0) + dt * 9;
         const dx = px - coin.x;
         const dy = py - coin.y;
         if (dx * dx + dy * dy < 30 * 30) {
@@ -445,6 +474,16 @@
           endGame();
           return;
         }
+      }
+
+      for (const f of world.fireflies) {
+        f.twinkle += dt * rnd(0.4, 1.1);
+        f.x += f.dx * dt;
+        f.y += f.dy * dt;
+        if (f.x < -20) f.x = world.w + 20;
+        if (f.x > world.w + 20) f.x = -20;
+        if (f.y < -20) f.y = world.h + 20;
+        if (f.y > world.h + 20) f.y = -20;
       }
 
       for (const d of items.drones) {
@@ -490,10 +529,11 @@
     }
 
     function drawBackground(camX) {
+      const pulse = 0.5 + Math.sin(world.time * 0.8) * 0.5;
       const g = ctx.createLinearGradient(0, 0, 0, world.h);
       g.addColorStop(0, '#051224');
-      g.addColorStop(0.43, '#0d344e');
-      g.addColorStop(1, '#1f6872');
+      g.addColorStop(0.43, '#164e73');
+      g.addColorStop(1, '#298075');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, world.w, world.h);
 
@@ -525,6 +565,24 @@
       ctx.fillStyle = fog;
       ctx.fillRect(0, 0, world.w, world.h);
 
+      for (const band of world.auroraBands) {
+        const y = band.y + Math.sin(world.time * band.speed + band.phase) * band.amp;
+        const grad = ctx.createLinearGradient(0, y - 40, 0, y + 40);
+        grad.addColorStop(0, `hsla(${band.hue}, 95%, 70%, 0)`);
+        grad.addColorStop(0.5, `hsla(${band.hue}, 95%, 65%, ${0.12 + pulse * 0.08})`);
+        grad.addColorStop(1, `hsla(${band.hue}, 95%, 70%, 0)`);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, y - 50, world.w, 110);
+      }
+
+      for (const f of world.fireflies) {
+        const alpha = 0.35 + (Math.sin(f.twinkle) * 0.5 + 0.5) * 0.65;
+        ctx.fillStyle = `rgba(255, 246, 170, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       drawCanopyLayer(camX, 0.07, '#123b42', 0.24, 220);
       drawCanopyLayer(camX, 0.12, '#0d2f36', 0.33, 270);
       drawCanopyLayer(camX, 0.19, '#0a2329', 0.43, 330);
@@ -549,12 +607,23 @@
     function drawPlatform(p, camX) {
       const x = p.x - camX + world.w * world.cameraLead;
       const y = p.y;
-      ctx.fillStyle = '#263c50';
+      const pattern = ctx.createLinearGradient(x, y, x + p.w, y + p.h);
+      pattern.addColorStop(0, '#244667');
+      pattern.addColorStop(0.5, '#385a82');
+      pattern.addColorStop(1, '#24384f');
+      ctx.fillStyle = pattern;
       ctx.fillRect(x, y, p.w, p.h);
-      ctx.fillStyle = '#87d89b';
+
+      const rim = ctx.createLinearGradient(x, y, x, y + 10);
+      rim.addColorStop(0, '#b6ff95');
+      rim.addColorStop(1, '#66d9d4');
+      ctx.fillStyle = rim;
       ctx.fillRect(x, y, p.w, 8);
-      ctx.fillStyle = '#3a5972';
-      ctx.fillRect(x, y + p.h - 8, p.w, 8);
+
+      ctx.fillStyle = 'rgba(255,255,255,0.08)';
+      for (let i = 0; i < p.w; i += 18) {
+        ctx.fillRect(x + i, y + 10 + Math.sin((i + world.time * 55) * 0.08) * 2, 10, 2);
+      }
 
       for (let i = 8; i < p.w - 20; i += 34) {
         ctx.fillStyle = i % 68 === 0 ? '#ff874b' : '#6be8ff';
@@ -565,7 +634,8 @@
     function drawHazard(h, camX) {
       const x = h.x - camX + world.w * world.cameraLead;
       const y = h.y;
-      ctx.fillStyle = '#9098a3';
+      const hazardPulse = 0.45 + (Math.sin(world.time * 10 + x * 0.03) * 0.5 + 0.5) * 0.55;
+      ctx.fillStyle = `rgba(255,130,145,${hazardPulse})`;
       const spikes = Math.max(2, Math.floor(h.w / 16));
       for (let i = 0; i < spikes; i++) {
         const sx = x + i * (h.w / spikes);
@@ -581,6 +651,15 @@
     function drawCoin(c, camX) {
       const x = c.x - camX + world.w * world.cameraLead;
       const y = c.y + Math.sin(c.bob) * 4;
+      const sparkle = 0.5 + (Math.sin(c.spark || 0) * 0.5 + 0.5) * 0.5;
+      const glow = ctx.createRadialGradient(x, y, 2, x, y, c.r * 1.9);
+      glow.addColorStop(0, `rgba(255,250,150,${0.55 * sparkle})`);
+      glow.addColorStop(1, 'rgba(255,250,150,0)');
+      ctx.fillStyle = glow;
+      ctx.beginPath();
+      ctx.arc(x, y, c.r * 1.9, 0, Math.PI * 2);
+      ctx.fill();
+
       ctx.fillStyle = '#ffd95a';
       ctx.beginPath();
       ctx.arc(x, y, c.r, 0, Math.PI * 2);
@@ -618,10 +697,11 @@
     }
 
     function drawPlayer(camX) {
+      const runPulse = 0.5 + Math.sin(world.time * 14) * 0.5;
       for (const t of player.trail) {
         const x = t.x - camX + world.w * world.cameraLead;
         ctx.globalAlpha = Math.max(0, t.life / 0.45) * 0.6;
-        ctx.fillStyle = '#58ddff';
+        ctx.fillStyle = `rgba(88,221,255,${0.3 + runPulse * 0.5})`;
         ctx.beginPath();
         ctx.arc(x, t.y, 16 * (1 - t.life / 0.45), 0, Math.PI * 2);
         ctx.fill();
@@ -634,7 +714,10 @@
       ctx.fillStyle = '#102035';
       ctx.fillRect(x + 18, y + 18, 32, 52);
 
-      ctx.fillStyle = '#c92852';
+      const suit = ctx.createLinearGradient(x + 16, y + 20, x + 52, y + 50);
+      suit.addColorStop(0, '#ff4f7a');
+      suit.addColorStop(1, '#a9157c');
+      ctx.fillStyle = suit;
       ctx.fillRect(x + 16, y + 20, 36, 30);
 
       ctx.fillStyle = '#1f2f44';
@@ -646,7 +729,7 @@
       ctx.arc(x + 33, y + 14, 12, 0, Math.PI * 2);
       ctx.fill();
 
-      ctx.fillStyle = '#8fffff';
+      ctx.fillStyle = `rgba(143,255,255,${0.45 + runPulse * 0.55})`;
       ctx.fillRect(x + 31, y + 10, 12, 6);
     }
 
@@ -667,7 +750,6 @@
       for (const c of items.coins) {
         if (c.x > from && c.x < to) drawCoin(c, world.cameraX);
       }
-
       for (const d of items.drones) {
         if (d.x + d.r > from && d.x - d.r < to) drawDrone(d, world.cameraX);
       }
@@ -700,7 +782,22 @@
 
     frame.addEventListener('pointerdown', onPress, { passive: false });
     window.addEventListener('keydown', (e) => {
-      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        if (!world.running && world.gameOver) {
+          resetGame();
+          return;
+        }
+        if (!world.running && !world.gameOver) {
+          startOverlay.classList.remove('show');
+          resetGame();
+          return;
+        }
+        triggerJump();
+        return;
+      }
+
+      if (e.code === 'ArrowUp' || e.code === 'KeyW') {
         e.preventDefault();
         triggerJump();
       }
